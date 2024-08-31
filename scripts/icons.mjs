@@ -1,9 +1,9 @@
 import path from 'path';
 import fs from 'fs/promises';
-import {transform} from '@svgr/core';
 
 import {ICONS_DIR, SVGS_DIR} from './constants.mjs';
 import {cleanDir, getComponentName, prettify} from './utils.mjs';
+import {transformer} from './transformer.mjs';
 
 async function createIndexFile(files) {
     const indexFile = path.join(ICONS_DIR, 'index.ts');
@@ -18,7 +18,7 @@ async function createIndexFile(files) {
     await fs.writeFile(indexFile, prettyContent);
 }
 
-async function run() {
+async function run(framework) {
     await cleanDir(ICONS_DIR);
 
     const files = (await fs.readdir(SVGS_DIR))
@@ -30,11 +30,7 @@ async function run() {
             const name = getComponentName(id);
             const code = await fs.readFile(file, 'utf8');
             const iconFile = path.join(ICONS_DIR, `${name}.tsx`);
-            const content = await transform(
-                code,
-                {typescript: true, plugins: ['@svgr/plugin-jsx']},
-                {componentName: name},
-            );
+            const content = await transformer[framework](code, name);
             const prettyContent = await prettify(content, iconFile);
 
             await fs.writeFile(iconFile, prettyContent);
@@ -45,7 +41,13 @@ async function run() {
     await createIndexFile(iconFiles);
 }
 
-run().catch((error) => {
+const [framework] = process.argv.slice(2);
+
+if (!framework) {
+    throw new Error('Please specify a framework');
+}
+
+run(framework).catch((error) => {
     // eslint-disable-next-line no-console
     console.error(error);
     process.exit(1);
